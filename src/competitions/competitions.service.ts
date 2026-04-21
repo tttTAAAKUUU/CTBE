@@ -133,10 +133,24 @@ export class CompetitionsService implements OnModuleInit {
     }
   }
 
-  async getLeaderboard(compId: number) {
-    return [
-      { userName: 'EliteTrader_99', pnl: 45.2, rank: 1 },
-      { userName: 'SkinMaster', pnl: 32.8, rank: 2 },
-    ];
+async getLeaderboard(compId: number) {
+  const comp = await this.repo.findOne({
+    where: { id: compId },
+    relations: ['participants'],
+  });
+
+  if (!comp) {
+    throw new NotFoundException(`Competition ${compId} not found`);
   }
+
+  // TODO: once positions are aggregated per competition, compute real PnL
+  // and sort by it. For now, return participants with 0 PnL so the UI
+  // stops showing fake traders.
+  return (comp.participants ?? []).map((p, index) => ({
+    id: p.id,
+    userName: p.userName,
+    pnl: 0,
+    rank: index + 1,
+  }));
+}
 }
