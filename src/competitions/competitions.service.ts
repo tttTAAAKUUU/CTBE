@@ -152,5 +152,5 @@ async getLeaderboard(compId: number) {
     pnl: 0,
     rank: index + 1,
   }));
-}
+  }
 }
