@@ -1,4 +1,7 @@
 // users.module.ts
+import { MailModule } from '../mail/mail.module';
+import { AuthModule } from '../auth/auth.module';
+import { forwardRef } from '@nestjs/common';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
@@ -14,6 +17,8 @@ import { KycModule } from '../kyc/kyc.module';
     forwardRef(() => WalletModule),
     forwardRef(() => AuthModule),
     forwardRef(() => KycModule),
+    MailModule,  
+    forwardRef(() => AuthModule),   
   ],
   providers: [UsersService],
   controllers: [UsersController],
