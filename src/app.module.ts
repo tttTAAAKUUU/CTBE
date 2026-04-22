@@ -1,3 +1,4 @@
+import { MailModule } from './mail/mail.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -32,6 +33,7 @@ import { AdminModule } from './admin/admin.module'; // 👈 Make sure this file 
 
     UsersModule,
     AuthModule,
+    MailModule,
     ScheduleModule.forRoot(),
     MarketsModule,
     WalletModule,
