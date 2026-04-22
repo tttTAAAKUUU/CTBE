@@ -1,7 +1,11 @@
-import { Controller, Post,Get, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import {
+  Verify2faLoginDto,
+  RequestActionCodeDto,
+} from './dto/two-factor.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -10,9 +14,8 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   getMe(@Req() req) {
-  return req.user;
-}
-
+    return req.user;
+  }
 
   @Post('register')
   async register(@Body() dto: CreateUserDto) {
@@ -21,23 +24,35 @@ export class AuthController {
 
   @Post('login')
   async login(
-    @Body() body: { email: string; password: string },
+    @Body() body: { email: string; password: string; deviceToken?: string },
   ) {
-    const user = await this.authService.validateUser(
-      body.email,
-      body.password,
-    );
+    const user = await this.authService.validateUser(body.email, body.password);
+    return this.authService.login(user, body.deviceToken);
+  }
 
-    return this.authService.login(user);
+  // ─── 2FA ENDPOINTS ───────────────────────────
+
+  @Post('2fa/verify')
+  async verify2fa(@Body() dto: Verify2faLoginDto) {
+    return this.authService.verify2faLogin(dto.tempToken, dto.code);
+  }
+
+  @Post('2fa/resend-login-code')
+  async resendLoginCode(@Body() body: { tempToken: string }) {
+    return this.authService.resend2faLoginCode(body.tempToken);
+  }
+
+  @Post('2fa/request-action-code')
+  @UseGuards(JwtAuthGuard)
+  async requestActionCode(
+    @Req() req,
+    @Body() dto: RequestActionCodeDto,
+  ) {
+    return this.authService.requestActionCode(req.user.id, dto.action);
   }
 
   @Post('verify-email')
-async verifyEmail(
-  @Body() body: { email: string; code: string },
-) {
-  return this.authService.verifyEmail(body.email, body.code);
-}
-
-
-
+  async verifyEmail(@Body() body: { email: string; code: string }) {
+    return this.authService.verifyEmail(body.email, body.code);
+  }
 }
