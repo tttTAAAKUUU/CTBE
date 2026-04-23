@@ -7,9 +7,11 @@ import {
   Req,
   UseGuards,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AuthService } from '../auth/auth.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { StartKycDto } from './dto/start-kyc.dto';
 import { KycService } from '../kyc/kyc.service';
@@ -20,11 +22,8 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly kycService: KycService,
+    private readonly authService: AuthService,
   ) {}
-
-  // =========================
-  // PROFILE
-  // =========================
 
   @Get('me')
   async getMe(@Req() req) {
@@ -32,15 +31,35 @@ export class UsersController {
   }
 
   @Patch('me')
-  async updateMe(@Req() req, @Body() dto: UpdateUserDto) {
+  async updateMe(
+    @Req() req,
+    @Body() body: UpdateUserDto & { code?: string },
+  ) {
+    const { code, ...dto } = body;
+
+    // If email is changing, require a 2FA action code.
+    if (dto.email) {
+      const currentUser = await this.usersService.findById(req.user.id);
+      if (dto.email !== currentUser.email) {
+        if (!code) throw new BadRequestException('Verification code required to change email');
+        await this.authService.verifyActionCode(req.user.id, code);
+      }
+    }
+
     return this.usersService.updateProfile(req.user.id, dto);
   }
 
   @Patch('me/password')
   async changePassword(
     @Req() req,
-    @Body() body: { oldPassword: string; newPassword: string },
+    @Body() body: { oldPassword: string; newPassword: string; code: string },
   ) {
+    if (!body.code) throw new BadRequestException('Verification code required');
+
+    // Step 1: verify the 2FA code (single-use, clears on success)
+    await this.authService.verifyActionCode(req.user.id, body.code);
+
+    // Step 2: do the password change (still needs old password)
     await this.usersService.changePassword(
       req.user.id,
       body.oldPassword,
@@ -56,33 +75,17 @@ export class UsersController {
     return { success: true };
   }
 
-  // =========================
-  // KYC START
-  // =========================
-
   @Patch('me/kyc/start')
   async startKyc(@Req() req, @Body() dto: StartKycDto) {
     const userId = req.user.id;
-
     const user = await this.usersService.findById(userId);
 
-    // ❗ Safety gate
-    if (!user.emailVerified) {
-      throw new ForbiddenException('Email not verified');
-    }
+    if (!user.emailVerified) throw new ForbiddenException('Email not verified');
 
-    // 1️⃣ Save entered KYC info locally
     await this.usersService.saveKycInfo(userId, dto);
-
-    // 2️⃣ Create Stripe Identity session
     const session = await this.kycService.createKycSession(user);
-
-    // 3️⃣ Persist session + mark pending
     await this.usersService.updateKycState(userId, session.id);
 
-    // 4️⃣ Frontend redirects user to Stripe
-    return {
-      verificationUrl: session.url,
-    };
+    return { verificationUrl: session.url };
   }
 }

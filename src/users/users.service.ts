@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
+import { MailService } from '../mail/mail.service';
 import { User } from './entities/user/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -25,8 +26,10 @@ export class UsersService {
 
     @Inject(forwardRef(() => WalletsService))
     private readonly walletService: WalletsService,
+    
+    private readonly mailService: MailService,
   ) {}
-
+  
   // =========================
   // CREATE USER
   // =========================
@@ -61,7 +64,13 @@ export class UsersService {
 
   await this.walletService.createWalletForUser(saved);
 
-  console.log(`📧 OTP for ${saved.email}:`, otp);
+  try {
+  await this.mailService.sendOtpEmail(saved.email, otp);
+  console.log(`📧 Signup OTP sent to ${saved.email}`);
+} catch (err) {
+  console.error('❌ Failed to send signup OTP:', err);
+  // Don't throw — user is created, they can request resend
+}
 
   const { password, ...result } = saved;
   return result;
@@ -226,5 +235,41 @@ async markEmailAsVerified(userId: number) {
     user.country = dto.country;
 
     await this.usersRepo.save(user);
+  }
+    async setLoginOtp(userId: number, otp: string, expiresAt: Date): Promise<void> {
+    await this.usersRepo.update(
+      { id: userId },
+      { loginOtp: otp, loginOtpExpiresAt: expiresAt },
+    );
+  }
+
+  async clearLoginOtp(userId: number): Promise<void> {
+    await this.usersRepo.update(
+      { id: userId },
+      { loginOtp: null, loginOtpExpiresAt: null },
+    );
+  }
+
+  // ─── 2FA: Action OTP ────────────────────────
+  async setActionOtp(userId: number, otp: string, expiresAt: Date): Promise<void> {
+    await this.usersRepo.update(
+      { id: userId },
+      { actionOtp: otp, actionOtpExpiresAt: expiresAt },
+    );
+  }
+
+  async clearActionOtp(userId: number): Promise<void> {
+    await this.usersRepo.update(
+      { id: userId },
+      { actionOtp: null, actionOtpExpiresAt: null },
+    );
+  }
+
+  // ─── 2FA: Trusted devices ───────────────────
+  async setTrustedDevices(
+    userId: number,
+    devices: Array<{ tokenHash: string; expiresAt: string }>,
+  ): Promise<void> {
+    await this.usersRepo.update({ id: userId }, { trustedDevices: devices });
   }
 }

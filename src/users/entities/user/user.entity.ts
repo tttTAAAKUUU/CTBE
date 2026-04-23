@@ -14,6 +14,8 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
+
+  
   @Column({ unique: true })
   email: string;
 
@@ -51,6 +53,8 @@ export class User {
   @Column({ nullable: true })
   kycSessionId?: string;
 
+  
+
   @Column({
     type: 'enum',
     enum: ['none', 'pending', 'approved', 'rejected'],
@@ -78,5 +82,25 @@ export class User {
   createdAt: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt: Date;'
+
+    // ─── 2FA: Login OTP ────────────────────────────────
+  @Column({ type: 'varchar', length: 6, nullable: true })
+  loginOtp: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  loginOtpExpiresAt: Date | null;
+
+  // ─── 2FA: Sensitive-action OTP ─────────────────────
+  @Column({ type: 'varchar', length: 6, nullable: true })
+  actionOtp: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  actionOtpExpiresAt: Date | null;
+
+  // ─── 2FA: Trusted device tokens ────────────────────
+  // Array of { tokenHash, expiresAt } as JSON. Each trusted device
+  // gets one entry; it's checked during login to skip 2FA.
+  @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
+  trustedDevices: Array<{ tokenHash: string; expiresAt: string }> | null;
 }
