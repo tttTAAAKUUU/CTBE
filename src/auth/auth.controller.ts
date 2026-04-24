@@ -6,6 +6,7 @@ import {
   Verify2faLoginDto,
   RequestActionCodeDto,
 } from './dto/two-factor.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -54,5 +55,16 @@ export class AuthController {
   @Post('verify-email')
   async verifyEmail(@Body() body: { email: string; code: string }) {
     return this.authService.verifyEmail(body.email, body.code);
+  }
+
+  // ─── Forgot / reset password ─────────────────
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.email, dto.code, dto.newPassword);
   }
 }

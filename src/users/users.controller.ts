@@ -8,6 +8,8 @@ import {
   UseGuards,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,6 +24,8 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly kycService: KycService,
+
+    @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
   ) {}
 
@@ -56,10 +60,10 @@ export class UsersController {
   ) {
     if (!body.code) throw new BadRequestException('Verification code required');
 
-    // Step 1: verify the 2FA code (single-use, clears on success)
+    // Verify the action code first (single-use, clears on success)
     await this.authService.verifyActionCode(req.user.id, body.code);
 
-    // Step 2: do the password change (still needs old password)
+    // Then do the password change
     await this.usersService.changePassword(
       req.user.id,
       body.oldPassword,
@@ -80,12 +84,16 @@ export class UsersController {
     const userId = req.user.id;
     const user = await this.usersService.findById(userId);
 
-    if (!user.emailVerified) throw new ForbiddenException('Email not verified');
+    if (!user.emailVerified) {
+      throw new ForbiddenException('Email not verified');
+    }
 
     await this.usersService.saveKycInfo(userId, dto);
     const session = await this.kycService.createKycSession(user);
     await this.usersService.updateKycState(userId, session.id);
 
-    return { verificationUrl: session.url };
+    return {
+      verificationUrl: session.url,
+    };
   }
 }

@@ -30,9 +30,11 @@ export class JwtAuthGuard implements CanActivate {
 
       /**
        * VERY IMPORTANT
-       * This is what @CurrentUser() reads
+       * This is what @CurrentUser() reads.
+       * JWTs are signed with `sub` as the user id (RFC 7519), but
+       * controllers read `req.user.id`, so expose it under both names.
        */
-      request.user = payload;
+      request.user = { ...payload, id: payload.sub };
 
       return true;
     } catch (error) {

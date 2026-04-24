@@ -1,21 +1,19 @@
 // src/users/entities/user/user.entity.ts
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  UpdateDateColumn, 
-  ManyToMany 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToMany,
 } from 'typeorm';
-import { Competition } from '../../../competitions/entities/competition.entity'; // ✅ Import Competition
+import { Competition } from '../../../competitions/entities/competition.entity';
 
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-
-  
   @Column({ unique: true })
   email: string;
 
@@ -53,8 +51,6 @@ export class User {
   @Column({ nullable: true })
   kycSessionId?: string;
 
-  
-
   @Column({
     type: 'enum',
     enum: ['none', 'pending', 'approved', 'rejected'],
@@ -74,7 +70,32 @@ export class User {
   @Column({ default: false })
   emailVerified: boolean;
 
-  // ✅ NEW: Inverse relationship to see joined competitions
+  // ─── 2FA: Login OTP ──────────────────────────────
+  @Column({ type: 'varchar', length: 6, nullable: true })
+  loginOtp: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  loginOtpExpiresAt: Date | null;
+
+  // ─── 2FA: Sensitive-action OTP ───────────────────
+  @Column({ type: 'varchar', length: 6, nullable: true })
+  actionOtp: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  actionOtpExpiresAt: Date | null;
+
+  // ─── Password reset OTP ─────────────────────────
+  @Column({ type: 'varchar', length: 6, nullable: true })
+  resetOtp: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  resetOtpExpiresAt: Date | null;
+
+  // ─── 2FA: Trusted device tokens ──────────────────
+  @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
+  trustedDevices: Array<{ tokenHash: string; expiresAt: string }> | null;
+
+  // Inverse relationship to see joined competitions
   @ManyToMany(() => Competition, (competition) => competition.participants)
   joinedCompetitions: Competition[];
 
@@ -82,25 +103,5 @@ export class User {
   createdAt: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;'
-
-    // ─── 2FA: Login OTP ────────────────────────────────
-  @Column({ type: 'varchar', length: 6, nullable: true })
-  loginOtp: string | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  loginOtpExpiresAt: Date | null;
-
-  // ─── 2FA: Sensitive-action OTP ─────────────────────
-  @Column({ type: 'varchar', length: 6, nullable: true })
-  actionOtp: string | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  actionOtpExpiresAt: Date | null;
-
-  // ─── 2FA: Trusted device tokens ────────────────────
-  // Array of { tokenHash, expiresAt } as JSON. Each trusted device
-  // gets one entry; it's checked during login to skip 2FA.
-  @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
-  trustedDevices: Array<{ tokenHash: string; expiresAt: string }> | null;
+  updatedAt: Date;
 }

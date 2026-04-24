@@ -1,4 +1,3 @@
-import { MailModule } from '../mail/mail.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -10,10 +9,11 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { UsersModule } from '../users/users.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
-    ConfigModule, // 👈 makes env vars available
+    ConfigModule,
     PassportModule,
     forwardRef(() => UsersModule),
     MailModule,

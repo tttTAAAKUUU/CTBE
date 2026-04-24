@@ -1,4 +1,3 @@
-import { MailModule } from './mail/mail.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -9,7 +8,8 @@ import { CompetitionsModule } from './competitions/competitions.module';
 import { PositionsModule } from './positions/position.module';
 import { MarketsModule } from './markets/market.module';
 import { WalletModule } from './wallet/wallet.module';
-import { AdminModule } from './admin/admin.module'; // 👈 Make sure this file exists!
+import { AdminModule } from './admin/admin.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -27,7 +27,7 @@ import { AdminModule } from './admin/admin.module'; // 👈 Make sure this file 
         password: config.get('DATABASE_PASS'),
         database: config.get('DATABASE_NAME'),
         autoLoadEntities: true,
-        synchronize: true, // Be careful with this in production!
+        synchronize: true,
       }),
     }),
 
@@ -39,7 +39,7 @@ import { AdminModule } from './admin/admin.module'; // 👈 Make sure this file 
     WalletModule,
     PositionsModule,
     CompetitionsModule,
-    AdminModule, // 👈 Added to resolve /admin/stats 404
+    AdminModule,
   ],
 })
 export class AppModule {}

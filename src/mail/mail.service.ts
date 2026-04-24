@@ -48,6 +48,22 @@ export class MailService {
     });
   }
 
+  // Used for the forgot-password / reset-password flow
+  async sendPasswordResetCode(email: string, otp: string) {
+    await this.transporter.sendMail({
+      from: '"Clutch" <no-reply@clutch.app>',
+      to: email,
+      subject: 'Reset your Clutch password',
+      html: `
+        <h2>Password reset code</h2>
+        <p>Someone requested a password reset for your Clutch account.</p>
+        <p>Enter this code to choose a new password:</p>
+        <h1 style="font-family: monospace; letter-spacing: 4px;">${otp}</h1>
+        <p>This code expires in 15 minutes. If you didn't request this, ignore this email and your password will stay the same.</p>
+      `,
+    });
+  }
+
   // Used for sensitive actions (change email / password)
   async sendActionCode(email: string, otp: string, action: string) {
     await this.transporter.sendMail({
@@ -62,3 +78,4 @@ export class MailService {
       `,
     });
   }
+}

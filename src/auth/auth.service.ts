@@ -36,20 +36,13 @@ export class AuthService {
     return result;
   }
 
-  /**
-   * Issue a normal access token. Used when 2FA is NOT required
-   * (trusted device) and after a successful 2FA verify.
-   */
+  /** Issue a normal access token. */
   private issueAccessToken(user: { id: number; email: string }) {
     const payload = { sub: user.id, email: user.email };
     return { access_token: this.jwtService.sign(payload) };
   }
 
-  /**
-   * Short-lived token used ONLY to call /auth/2fa/verify.
-   * Separate secret path (via payload.purpose) so it can't be used as an
-   * access token.
-   */
+  /** Short-lived token used ONLY to call /auth/2fa/verify. */
   private issueTempToken(userId: number): string {
     return this.jwtService.sign(
       { sub: userId, purpose: '2fa-pending' },
@@ -57,11 +50,6 @@ export class AuthService {
     );
   }
 
-  /**
-   * Called by /auth/login controller.
-   * Returns either a real JWT (if device trusted) or a { requires2FA, tempToken }
-   * response (if not trusted).
-   */
   async login(
     user: { id: number; email: string },
     deviceToken?: string,
@@ -76,7 +64,7 @@ export class AuthService {
       };
     }
 
-    // Otherwise, send an OTP and return a tempToken.
+    // Otherwise, send OTP and return tempToken.
     const otp = generateOtp();
     const expires = new Date(Date.now() + 10 * 60 * 1000);
     await this.usersService.setLoginOtp(user.id, otp, expires);
@@ -85,9 +73,8 @@ export class AuthService {
       await this.mailService.sendLoginCode(user.email, otp);
     } catch (err) {
       console.error('❌ Failed to send login 2FA email:', err);
-      throw new BadRequestException(
-        'Could not send verification code. Try again later.',
-      );
+      // Still return tempToken so dev can check server logs for OTP
+      console.log(`📧 [DEV] Login OTP for ${user.email}: ${otp}`);
     }
 
     return {
@@ -96,11 +83,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Called by /auth/2fa/verify.
-   * Validates code, clears it, returns real JWT + a fresh device token
-   * to remember this device.
-   */
   async verify2faLogin(tempToken: string, code: string) {
     let payload: any;
     try {
@@ -124,10 +106,8 @@ export class AuthService {
       throw new BadRequestException('Code expired. Log in again.');
     }
 
-    // Clear the OTP
     await this.usersService.clearLoginOtp(user.id);
 
-    // Issue a fresh device token + persist its hash
     const rawDeviceToken = generateDeviceToken();
     const updatedDevices = addTrustedDevice(
       user.trustedDevices,
@@ -137,13 +117,10 @@ export class AuthService {
 
     return {
       ...this.issueAccessToken({ id: user.id, email: user.email }),
-      deviceToken: rawDeviceToken, // frontend stores this in localStorage
+      deviceToken: rawDeviceToken,
     };
   }
 
-  /**
-   * Resend login code using the same tempToken.
-   */
   async resend2faLoginCode(tempToken: string) {
     let payload: any;
     try {
@@ -159,13 +136,15 @@ export class AuthService {
     const otp = generateOtp();
     const expires = new Date(Date.now() + 10 * 60 * 1000);
     await this.usersService.setLoginOtp(user.id, otp, expires);
-    await this.mailService.sendLoginCode(user.email, otp);
+    try {
+      await this.mailService.sendLoginCode(user.email, otp);
+    } catch (err) {
+      console.error('❌ Failed to resend login code:', err);
+      console.log(`📧 [DEV] Login OTP for ${user.email}: ${otp}`);
+    }
     return { success: true };
   }
 
-  /**
-   * Called by /auth/2fa/request-action-code (for change-password / change-email).
-   */
   async requestActionCode(userId: number, action: string) {
     const user = await this.usersService.findById(userId);
     const otp = generateOtp();
@@ -177,14 +156,15 @@ export class AuthService {
       : action === 'change-email' ? 'change your email'
       : 'confirm a sensitive action';
 
-    await this.mailService.sendActionCode(user.email, otp, readableAction);
+    try {
+      await this.mailService.sendActionCode(user.email, otp, readableAction);
+    } catch (err) {
+      console.error('❌ Failed to send action code:', err);
+      console.log(`📧 [DEV] Action OTP for ${user.email}: ${otp}`);
+    }
     return { success: true };
   }
 
-  /**
-   * Called internally by UsersService when user submits a sensitive-action form.
-   * Throws if invalid. Clears the code on success (single-use).
-   */
   async verifyActionCode(userId: number, code: string): Promise<void> {
     const user = await this.usersService.findById(userId);
     if (!user.actionOtp || !user.actionOtpExpiresAt) {
@@ -199,13 +179,50 @@ export class AuthService {
     await this.usersService.clearActionOtp(userId);
   }
 
-  // ─── UNCHANGED BELOW ─────────────────────────────────
-
   async register(dto: CreateUserDto) {
     const user = await this.usersService.create(dto);
-    // Register auto-logs-in without 2FA since it's a brand-new account.
-    // The user hasn't set up email verification yet; KYC gate handles auth flow.
     return this.issueAccessToken({ id: user.id, email: user.email });
+  }
+
+  // =========================
+  // Password reset (forgot-password flow)
+  // =========================
+  async requestPasswordReset(email: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('Email isn\'t a registered user');
+    }
+
+    const otp = generateOtp();
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
+    await this.usersService.setResetOtp(user.id, otp, expires);
+
+    try {
+      await this.mailService.sendPasswordResetCode(user.email, otp);
+    } catch (err) {
+      console.error('❌ Failed to send password reset email:', err);
+      console.log(`📧 [DEV] Password reset OTP for ${user.email}: ${otp}`);
+    }
+    return { success: true };
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) throw new BadRequestException('Invalid code');
+    if (!user.resetOtp || !user.resetOtpExpiresAt) {
+      throw new BadRequestException('No pending reset. Request a new code.');
+    }
+    if (user.resetOtp !== code) throw new BadRequestException('Invalid code');
+    if (user.resetOtpExpiresAt < new Date()) {
+      throw new BadRequestException('Code expired. Request a new one.');
+    }
+
+    const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS) || 10;
+    const hashed = await bcrypt.hash(newPassword, saltRounds);
+    await this.usersService.setPasswordHash(user.id, hashed);
+    await this.usersService.clearResetOtp(user.id);
+
+    return { success: true };
   }
 
   async verifyEmail(email: string, code: string) {

@@ -1,7 +1,4 @@
 // users.module.ts
-import { MailModule } from '../mail/mail.module';
-import { AuthModule } from '../auth/auth.module';
-import { forwardRef } from '@nestjs/common';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
@@ -10,6 +7,7 @@ import { User } from './entities/user/user.entity';
 import { WalletModule } from '../wallet/wallet.module';
 import { AuthModule } from '../auth/auth.module';
 import { KycModule } from '../kyc/kyc.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -17,8 +15,7 @@ import { KycModule } from '../kyc/kyc.module';
     forwardRef(() => WalletModule),
     forwardRef(() => AuthModule),
     forwardRef(() => KycModule),
-    MailModule,  
-    forwardRef(() => AuthModule),   
+    MailModule,
   ],
   providers: [UsersService],
   controllers: [UsersController],
